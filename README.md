@@ -8,7 +8,7 @@ Icoteq have designed bespoke tracking and monitoring devices for this project th
 
 A commemoration to the original expedition, this project brings together the involvement of children in science, technology and engineering subjects (STEM), the application of low cost sensors for environmental monitoring and the notion of citizen science contributing to the gathering of important scientific data at scale.
 
-Follow the journey of Terror and Erebus at http://icoteq.com/project-erebus, click on the waypoints for images and sensor data, and join the discussion at https://www.facebook.com/tdajp!
+Follow the journey of Terror and Erebus at https://icoteq.com/project-erebus, click on the waypoints for images and sensor data, and join the discussion at https://www.facebook.com/tdajp!
 
 ## What's this repo?
 
