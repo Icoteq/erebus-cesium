@@ -30,7 +30,7 @@ Run the following commands:
 
 ```
 docker-compose build
-docker up -d
+docker-compose up -d
 ```
 
 Then point your web browser to http://127.0.0.1:5000 or the machine IP address which is running the docker on your network.
