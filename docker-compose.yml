@@ -1,0 +1,15 @@
+version: "2.0"
+
+services:
+  erebus-cesium:
+    build: .
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+    container_name: 'erebus-cesium'
+    image: 'icoteq/erebus-cesium:latest'
+    ports:
+      - 5000:5000
+    volumes:
+        - ./static:/erebus-cesium/static
+    restart: always
+    network_mode: bridge
