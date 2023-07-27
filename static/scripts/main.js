@@ -196,10 +196,11 @@ function render3dShipModel (name, modelUri, positions, entities, props) {
 
     if (props) {
         // Duplicate last known good properties into the 3d model but set the
-        // final distane from the last known position
+        // final distance from the last known position
         properties = props.properties;
-        properties['distance'] = entities[entities.length-1].properties['distance']
-        properties['quality'] = entities[entities.length-1].properties['quality']
+        properties['date'] = entities[entities.length-1].properties['date'];
+        properties['distance'] = entities[entities.length-1].properties['distance'];
+        properties['quality'] = entities[entities.length-1].properties['quality'];
         model.description = buildTable(properties);
     }
 }
