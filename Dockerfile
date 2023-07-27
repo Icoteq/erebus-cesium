@@ -8,4 +8,4 @@ COPY . $INSTALL
 
 RUN pip3 install -r requirements
 
-CMD ./dockerlaunch
+CMD python3 cesium.py
