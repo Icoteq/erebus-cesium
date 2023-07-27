@@ -8,7 +8,7 @@ Icoteq have designed bespoke tracking and monitoring devices for this project th
 
 A commemoration to the original expedition, this project brings together the involvement of children in science, technology and engineering subjects (STEM), the application of low cost sensors for environmental monitoring and the notion of citizen science contributing to the gathering of important scientific data at scale.
 
-Follow the journey of Terror and Erebus at http:://icoteq.com/project-erebus, click on the waypoints for images and sensor data, and join the discussion at https://www.facebook.com/tdajp!
+Follow the journey of Terror and Erebus at http://icoteq.com/project-erebus, click on the waypoints for images and sensor data, and join the discussion at https://www.facebook.com/tdajp!
 
 ## What's this repo?
 
@@ -24,10 +24,10 @@ A snapshot of the real-world data used can be found under the `static/geojson` a
 
 Run the following commands:
 
-``
+```
 docker-compose build
 docker up -d
-``
+```
 
 Then point your web browser to http://127.0.0.1:5000 or the machine IP address which is running the docker on your network.
 
