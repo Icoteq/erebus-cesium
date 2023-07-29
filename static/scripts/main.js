@@ -6,8 +6,9 @@
 // Initialize the Cesium Viewer in the HTML element with the `cesiumContainer` ID.
 const viewer = new Cesium.Viewer('cesiumContainer',
     {
-        timeline: false,
-        animation: false,
+        timeline: true,
+        shouldAnimate: false,
+        animation: true,
         geocoder: false,
         sceneModePicker: true,
         navigationInstructionsInitiallyVisible: false,
@@ -25,6 +26,8 @@ const viewer = new Cesium.Viewer('cesiumContainer',
 function cacheBust(url) {
     return  url + `?v=${Math.random()}`;
 }
+
+
 
 function goHome() {
     viewer.flyTo(
@@ -123,7 +126,69 @@ function renderHeatMap(name, dataSource, propertyName, valueMin, valueMax) {
     // TODO
 }
 
-function renderInfoIcons (name, infos) {
+
+class VelocityOrientationProperty {
+    #samples;
+    #lastValue;
+    constructor(samples) {
+        this.#samples = samples;
+        this.#lastValue = undefined;
+    }
+    getValue(time, result) {
+        const a = this.#samples.getValue(time);
+        const b = this.#samples.getValue(Cesium.JulianDate.addSeconds(time, 10, new Cesium.JulianDate()));
+        if (a == undefined || b == undefined)
+            return this.#lastValue;
+        const p1 = new Cesium.Cartographic.fromCartesian(a);
+        const p2 = new Cesium.Cartographic.fromCartesian(b);
+        const position = this.#samples.getValue(time);
+        const heading = Cesium.Math.toRadians(getHeading(p1.longitude, p1.latitude, p2.longitude, p2.latitude));
+        const roll = Cesium.Math.toRadians(0);
+        const pitch = Cesium.Math.toRadians(90);
+        const hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
+        this.#lastValue = Cesium.Transforms.headingPitchRollQuaternion(
+          position,
+          hpr
+        );
+        return this.#lastValue;
+    }
+};
+
+function renderTimelinePath(name, color, dataSource, modelUri) {
+    const entities = dataSource.entities.values;
+    const samples = new Cesium.SampledPositionProperty();
+    const start = Cesium.JulianDate.fromIso8601(entities[0].properties['date'].getValue());
+    const stop = Cesium.JulianDate.fromIso8601(entities[entities.length-1].properties['date'].getValue());
+
+    for (var i = 0; i < entities.length; i++) {
+        const entity = entities[i];
+        const time = Cesium.JulianDate.fromIso8601(entity.properties['date'].getValue());
+        const cart = Cesium.Cartographic.fromCartesian(entity.position.getValue());
+        samples.addSample(time, Cesium.Cartographic.toCartesian(cart));
+    }
+    const entity = viewer.entities.add({
+      availability: new Cesium.TimeIntervalCollection([
+        new Cesium.TimeInterval({
+          start: start,
+          stop: stop,
+        }),
+      ]),
+
+      position: samples,
+
+      orientation: new VelocityOrientationProperty(samples),
+
+      model: {
+        uri: modelUri,
+        minimumPixelSize: 64,
+        scale: 0.005,
+    },
+  });
+
+  return [start, stop];
+}
+
+function renderInfoIcons(name, infos) {
     infos.forEach(function(info) {
         const cartographic = Cesium.Cartographic.fromCartesian(info.position.getValue());
         cartographic.height = 0.2;
@@ -139,7 +204,7 @@ function renderInfoIcons (name, infos) {
     });
 }
 
-function renderCameraIcons (name, color, images) {
+function renderCameraIcons(name, color, images) {
     Promise.resolve(
       pinBuilder.fromUrl('/static/icons/attraction.svg', color, 48)
     ).then(function (canvas) {
@@ -158,7 +223,7 @@ function renderCameraIcons (name, color, images) {
     });
 }
 
-function render3dShipModel (name, modelUri, positions, entities, props) {
+function render3dShipModel(name, modelUri, positions, entities, props) {
     const position = Cesium.Cartesian3.fromDegrees(
       positions[positions.length-2],
       positions[positions.length-1],
@@ -176,6 +241,9 @@ function render3dShipModel (name, modelUri, positions, entities, props) {
     const lastHeard = Cesium.JulianDate.fromIso8601(entities[entities.length-1].properties['date'].getValue());
     const delta = (Cesium.JulianDate.secondsDifference(Cesium.JulianDate.now(), lastHeard) / 3600.0).toFixed(2);
 
+    const xOffset = name == 'Erebus' ? -60 : 60;
+    const yOffset = name == 'Erebus' ? 30 : -30;
+
     // Create 3d model entity of ship
     model = viewer.entities.add({
       name: name,
@@ -189,7 +257,18 @@ function render3dShipModel (name, modelUri, positions, entities, props) {
       label: {
         text: name + ' (' + parseFloat(entities[entities.length-1].properties['distance']).toFixed(2).toString() + ' km, heard ' + delta.toString() + ' hrs ago)',
         font: "16px sans-serif",
-        pixelOffset: new Cesium.Cartesian2(0.0, 30),
+        pixelOffset: new Cesium.Cartesian2(xOffset, yOffset),
+        eyeOffset: new Cesium.Cartesian3(0, 0, 5.0)
+      }
+    });
+
+    viewer.entities.add({
+      name: name,
+      position: entities[0].position,
+      label: {
+        text: name + ' Start',
+        font: "16px sans-serif",
+        pixelOffset: new Cesium.Cartesian2(xOffset, yOffset),
         eyeOffset: new Cesium.Cartesian3(0, 0, 5.0)
       }
     });
@@ -231,7 +310,7 @@ function renderPoint(color) {
     });
 }
 
-function renderDataSource (name, dataSource, color, modelUri, onCompletion) {
+function renderDataSource(name, dataSource, color, modelUri, onCompletion) {
 
     viewer.dataSources.add(dataSource);
 
@@ -264,31 +343,44 @@ function renderDataSource (name, dataSource, color, modelUri, onCompletion) {
     renderInfoIcons(name, infos);
     render3dShipModel(name, modelUri, positions, entities, props);
     renderPolyline(name, color, positions);
-    onCompletion();
+    [startTime, endTime] = renderTimelinePath(name, color, dataSource, modelUri);
+    onCompletion(startTime, endTime);
 }
 
 var numDataSources = 0;
+var clockStart = new Cesium.JulianDate.fromDate(new Date(2999, 1, 1));
+var clockStop = new Cesium.JulianDate.fromDate(new Date(1970, 1, 1));
+
+function onRenderComplete(start, stop) {
+    numDataSources++;
+    if (Cesium.JulianDate.lessThan(start, clockStart)) {
+        clockStart = start;
+    }
+    if (Cesium.JulianDate.greaterThan(stop, clockStop)) {
+        clockStop = stop;
+    }
+    if (numDataSources == 2) {
+        goHome();
+        console.log(clockStart.toString(), clockStop.toString());
+        viewer.clock.startTime = clockStart.clone();
+        viewer.clock.stopTime = clockStop.clone();
+        viewer.clock.currentTime = clockStart.clone();
+        viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
+        viewer.clock.multiplier = 10000;
+        viewer.timeline.zoomTo(clockStart, clockStop);
+    }
+}
 
 Cesium.GeoJsonDataSource.load(cacheBust('/static/geojson/erebus.geojson'), {})
     .then(
         function (dataSource) {
-            renderDataSource('Erebus', dataSource, Cesium.Color.RED, '/static/3d/02_barkas_red.gltf', function() {
-                numDataSources++;
-                if (numDataSources == 2) {
-                    goHome();
-                }
-            });
+            renderDataSource('Erebus', dataSource, Cesium.Color.RED, '/static/3d/02_barkas_red.gltf', onRenderComplete);
         }
     );
 
 Cesium.GeoJsonDataSource.load(cacheBust('/static/geojson/terror.geojson'), {})
     .then(
         function (dataSource) {
-            renderDataSource('Terror', dataSource, Cesium.Color.BLUE, '/static/3d/02_barkas_blue.gltf', function() {
-                numDataSources++;
-                if (numDataSources == 2) {
-                    goHome();
-                }
-            });
+            renderDataSource('Terror', dataSource, Cesium.Color.BLUE, '/static/3d/02_barkas_blue.gltf', onRenderComplete);
         }
     );
