@@ -3,31 +3,40 @@
 
 //Cesium.Ion.defaultAccessToken = 'your_access_token';
 
-// Initialize the Cesium Viewer in the HTML element with the `cesiumContainer` ID.
-const viewer = new Cesium.Viewer('cesiumContainer',
-    {
-        timeline: true,
-        shouldAnimate: false,
-        animation: true,
-        geocoder: false,
-        sceneModePicker: true,
-        navigationInstructionsInitiallyVisible: false,
-        useBrowserRecommendedResolution: false,
-        baseLayerPicker: false,
-        baseLayer: Cesium.ImageryLayer.fromProviderAsync(
-            Cesium.IonImageryProvider.fromAssetId(3954)
-          ),
-        terrain: Cesium.Terrain.fromWorldTerrain({
-            requestWaterMask: true
-        })
-    });
-//viewer.scene.debugShowFramesPerSecond = true;
+const pinBuilder = new Cesium.PinBuilder();
+var numDataSources = 0;
+var clockStart = new Cesium.JulianDate.fromDate(new Date(2999, 1, 1));
+var clockStop = new Cesium.JulianDate.fromDate(new Date(1970, 1, 1));
+var pathEntities = [];
+
+function addToolbarButton(data, onClick) {
+    const el = (sel, par) => (par || document).querySelector(sel);
+    const elNew = (tag, prop) => Object.assign(document.createElement(tag), prop);
+    const elNewNs = (ns, tag, prop) => Object.assign(document.createElementNS(ns, tag), prop);
+    const toolbar = el('.cesium-viewer-toolbar');
+    const button = elNew('button', {className: 'cesium-button cesium-toolbar-button cesium-home-button',
+                                    onclick: onClick});
+    const svg = elNewNs('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 17 17');
+    const path = elNewNs('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', data);
+    svg.appendChild(path);
+    button.appendChild(svg);
+    console.log(path);
+    toolbar.prepend(button);
+}
+
+function toggleAnimations() {
+    const display = viewer.animation.container.style.display === 'none' ? 'block' : 'none';
+    viewer.animation.container.style.display = display;
+    viewer.timeline.container.style.display = display;
+    viewer.forceResize();
+    pathEntities.forEach(x => x.show = !x.show);
+}
 
 function cacheBust(url) {
     return  url + `?v=${Math.random()}`;
 }
-
-
 
 function goHome() {
     viewer.flyTo(
@@ -37,14 +46,6 @@ function goHome() {
       }
     );
 }
-
-viewer.homeButton.viewModel.command.beforeExecute.addEventListener(
-  function(e) {
-     e.cancel = true;
-     goHome();
-  });
-
-const pinBuilder = new Cesium.PinBuilder();
 
 class DashPatternAnimator {
     pattern;
@@ -185,7 +186,10 @@ function renderTimelinePath(name, color, dataSource, modelUri) {
     },
   });
 
-  return [start, stop];
+  // Do not display by default
+  entity.show = !entity.show;
+
+  return [start, stop, entity];
 }
 
 function renderInfoIcons(name, infos) {
@@ -343,16 +347,14 @@ function renderDataSource(name, dataSource, color, modelUri, onCompletion) {
     renderInfoIcons(name, infos);
     render3dShipModel(name, modelUri, positions, entities, props);
     renderPolyline(name, color, positions);
-    [startTime, endTime] = renderTimelinePath(name, color, dataSource, modelUri);
-    onCompletion(startTime, endTime);
+    const result = renderTimelinePath(name, color, dataSource, modelUri);
+    onCompletion(result);
 }
 
-var numDataSources = 0;
-var clockStart = new Cesium.JulianDate.fromDate(new Date(2999, 1, 1));
-var clockStop = new Cesium.JulianDate.fromDate(new Date(1970, 1, 1));
-
-function onRenderComplete(start, stop) {
+function onRenderComplete(args) {
+    [start, stop, entity] = args;
     numDataSources++;
+    pathEntities.push(entity);
     if (Cesium.JulianDate.lessThan(start, clockStart)) {
         clockStart = start;
     }
@@ -370,6 +372,36 @@ function onRenderComplete(start, stop) {
         viewer.timeline.zoomTo(clockStart, clockStop);
     }
 }
+
+// Initialize the Cesium Viewer in the HTML element with the `cesiumContainer` ID.
+const viewer = new Cesium.Viewer('cesiumContainer',
+    {
+        timeline: true,
+        shouldAnimate: false,
+        animation: true,
+        geocoder: false,
+        sceneModePicker: true,
+        navigationInstructionsInitiallyVisible: false,
+        useBrowserRecommendedResolution: false,
+        baseLayerPicker: false,
+        baseLayer: Cesium.ImageryLayer.fromProviderAsync(
+            Cesium.IonImageryProvider.fromAssetId(3954)
+          ),
+        terrain: Cesium.Terrain.fromWorldTerrain({
+            requestWaterMask: true
+        })
+    });
+toggleAnimations();
+
+//viewer.scene.debugShowFramesPerSecond = true;
+viewer.homeButton.viewModel.command.beforeExecute.addEventListener(
+  function(e) {
+     e.cancel = true;
+     goHome();
+  });
+
+addToolbarButton('M 10.0643 12.2159 C 10.5334 11.7034 11.0001 11.1935 11.6581 10.9742 C 12.5793 10.6671 13.2483 11.052 13.5246 11.2547 C 14.2487 11.7857 14.915 11.0343 14.116 10.4483 C 13.6891 10.1352 12.6709 9.58253 11.3419 10.0255 C 10.6217 10.2656 10.1292 10.7922 9.63703 11.3186 C 9.23691 11.7465 8.83694 12.1742 8.31491 12.4477 C 7.6958 12.772 7.25005 12.4211 7.25005 11.8125 V 11.8004 C 7.25026 11.0022 6.84186 10.5 6.00005 10.5 C 5.50934 10.5 5.00789 10.7582 4.50004 11 C 3.32493 11.5596 2.18205 12.2859 1.1829 13.1134 C 0.972261 13.2885 0.939711 13.6085 1.11594 13.82 C 1.36644 14.1206 1.6967 13.9821 1.94532 13.7821 C 2.35893 13.4492 3.72648 12.3908 4.87908 11.8421 C 5.3556 11.6151 5.74077 11.5 6.00005 11.5 C 6.25002 11.5 6.25002 11.6016 6.25002 11.8396 C 6.248 13.166 7.54027 13.9824 8.77895 13.3335 C 9.2831 13.0694 9.67452 12.6418 10.0643 12.2159 Z M 2.50004 10 C 4.00004 9 5.75496 8 7.50004 8 C 8.25004 8 8.25004 8.375 8.25004 8.75 C 8.25004 9.125 8.25004 9.5 9.00004 9.5 C 11.5275 9.5 14.3632 6.28623 14.5 4 L 12 5 L 9.65805 4.02555 C 9.04629 3.82163 8.73006 4.77031 9.34182 4.97423 L 10.5 5.5 L 9.00004 6 L 5.00004 4.75 C 4.76398 4.67131 4.61132 4.77744 4.50004 5 L 3.00004 8 L 1 9 L 2.50004 10 Z M 5.00004 3 C 5.00004 2.4477 5.44774 2 6.00004 2 C 6.55234 2 7.00004 2.4477 7.00004 3 C 7.00004 3.5523 6.55234 4 6.00004 4 C 5.44774 4 5.00004 3.5523 5.00004 3 Z',
+    toggleAnimations);
 
 Cesium.GeoJsonDataSource.load(cacheBust('/static/geojson/erebus.geojson'), {})
     .then(
